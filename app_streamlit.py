@@ -11,14 +11,6 @@ from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 import av
 
-# Import legacy Keras loader first
-try:
-    import tf_keras as keras
-    load_model = keras.models.load_model
-except Exception:
-    import tensorflow.keras as keras
-    load_model = keras.models.load_model
-
 # 1. Konfigurasi Halaman Streamlit
 st.set_page_config(
     page_title="Penerjemah BISINDO AI",
@@ -222,15 +214,16 @@ st.markdown("""
 @st.cache_resource
 def load_resources():
     try:
-        model = load_model('cnn_bisindo.h5', compile=False)
+        import tf_keras as legacy_keras
+        model = legacy_keras.models.load_model('cnn_bisindo.h5', compile=False)
     except Exception:
-        # Robust Fallback: jika deserialisasi config Keras 3 gagal karena 'batch_shape', muat bobot murni (load_weights)
+        # Fallback Presisi Persis (Valid Padding Shape 1792):
         import tensorflow as tf
         model = tf.keras.models.Sequential([
             tf.keras.layers.Input(shape=(63, 1)),
-            tf.keras.layers.Conv1D(64, 3, activation='relu', padding='same'),
+            tf.keras.layers.Conv1D(64, 3, activation='relu'),
             tf.keras.layers.MaxPooling1D(2),
-            tf.keras.layers.Conv1D(128, 3, activation='relu', padding='same'),
+            tf.keras.layers.Conv1D(128, 3, activation='relu'),
             tf.keras.layers.MaxPooling1D(2),
             tf.keras.layers.Flatten(),
             tf.keras.layers.Dense(128, activation='relu'),
