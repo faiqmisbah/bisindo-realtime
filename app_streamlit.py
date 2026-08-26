@@ -2,14 +2,12 @@ import os
 os.environ["TF_USE_LEGACY_KERAS"] = "1"
 os.environ["KERAS_BACKEND"] = "tensorflow"
 
-# Import MediaPipe first to initialize C++ absl/glog symbols cleanly
+import streamlit as st
+import cv2
+import numpy as np
 import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
-
-import cv2
-import numpy as np
-import streamlit as st
 from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration, WebRtcMode
 import av
 
@@ -24,7 +22,7 @@ st.set_page_config(
 if "current_word" not in st.session_state:
     st.session_state.current_word = ""
 
-# Custom Styling (FaiqDev Theme - High Contrast & Visibility)
+# Custom Styling (FaiqDev Theme - Direct Button Type & High Contrast Visibility)
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
@@ -363,7 +361,7 @@ with col_cam:
     )
     
     if "Kamera Native" in cam_mode:
-        img_buffer = st.camera_input("Snapshot Kamera Native (Tekan Spasi atau klik tombol di bawah)", key="native_cam_input_clean")
+        img_buffer = st.camera_input("Snapshot Kamera Native (Tekan Spasi atau klik tombol di bawah)", key="native_cam_input_working")
         
         if img_buffer is not None:
             bytes_data = img_buffer.getvalue()
