@@ -1,0 +1,22 @@
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Raw Dataset Images
+bisindo/
+
+# Streamlit
+.streamlit/
+*.log
+
+# OS Junk
+.DS_Store
+Thumbs.db
