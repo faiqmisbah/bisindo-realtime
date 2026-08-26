@@ -33,7 +33,6 @@ def predict_bisindo(frame, current_word):
     if frame is None:
         return None, state["current_word"]
         
-    # Mirror image
     img = cv2.flip(frame, 1)
     rgb_image = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_image)
@@ -85,17 +84,13 @@ def delete_char():
     state["current_word"] = state["current_word"][:-1]
     return state["current_word"]
 
-# 2. Desain Antarmuka Gradio UI (Tema FaiqDev)
-with gr.Blocks(theme=gr.themes.Soft(primary_hue="emerald"), css="""
-    .brand-title { font-size: 2.2rem; font-weight: 800; color: #061d19; margin-bottom: 0.3rem; }
-    .brand-title span { color: #00a884; }
-    .brand-sub { font-size: 1rem; color: #52605d; margin-bottom: 1rem; }
-""") as demo:
+# 2. Desain Antarmuka Gradio UI
+with gr.Blocks(title="Penerjemah BISINDO AI") as demo:
     gr.HTML("""
     <div style="background:#ffffff; border:2px solid #cbd5e1; border-radius:20px; padding:1.8rem 2.4rem; margin-bottom:1.5rem; box-shadow:0 10px 30px rgba(0,0,0,0.04);">
         <div style="background:#e6f7f3; color:#008767; font-size:0.8rem; font-weight:800; padding:0.4rem 1rem; border-radius:50px; display:inline-block; margin-bottom:0.5rem;">REAL-TIME AI SYSTEM</div>
-        <div class="brand-title">Penerjemah BISINDO <span>AI</span></div>
-        <div class="brand-sub">Sistem Penerjemah Bahasa Isyarat Indonesia (A-Z) berbasis Convolutional Neural Network</div>
+        <div style="font-size:2.2rem; font-weight:800; color:#061d19; margin-bottom:0.3rem;">Penerjemah BISINDO <span style="color:#00a884;">AI</span></div>
+        <div style="font-size:1rem; color:#52605d;">Sistem Penerjemah Bahasa Isyarat Indonesia (A-Z) berbasis Convolutional Neural Network</div>
     </div>
     """)
     
@@ -132,4 +127,4 @@ with gr.Blocks(theme=gr.themes.Soft(primary_hue="emerald"), css="""
     btn_del.click(fn=delete_char, outputs=word_output)
 
 if __name__ == "__main__":
-    demo.launch()
+    demo.launch(server_name="0.0.0.0", server_port=7860)
