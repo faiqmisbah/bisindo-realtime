@@ -3,6 +3,7 @@ os.environ["TF_USE_LEGACY_KERAS"] = "1"
 os.environ["KERAS_BACKEND"] = "tensorflow"
 
 import streamlit as st
+import streamlit.components.v1 as components
 from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration, WebRtcMode
 import cv2
 import numpy as np
@@ -18,11 +19,11 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Inisialisasi Session State Teks Kata (Thread Safe)
+# Inisialisasi Session State Teks Kata
 if "current_word" not in st.session_state:
     st.session_state.current_word = ""
 
-# Custom Styling (FaiqDev Theme: Direct Button Type Targeting, High Visibility)
+# Custom Styling (FaiqDev Theme)
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
@@ -41,14 +42,12 @@ st.markdown("""
         max-width: 100% !important;
     }
     
-    /* Radio Option Text Styling (Perbaikan Warna Teks Radio) */
     .stRadio label, .stRadio p, div[data-testid="stRadio"] label p {
         color: #061d19 !important;
         font-size: 1.02rem !important;
         font-weight: 700 !important;
     }
     
-    /* Floating Header Navbar */
     .brand-header {
         background-color: #ffffff;
         border: 2px solid #cbd5e1;
@@ -93,7 +92,6 @@ st.markdown("""
         font-weight: 400;
     }
     
-    /* Section Headers */
     .section-title {
         font-size: 1.4rem;
         font-weight: 800;
@@ -109,7 +107,6 @@ st.markdown("""
         margin-bottom: 1.2rem;
     }
     
-    /* Custom Cards dengan Garis Tepi (Border) 2px Jelas */
     .custom-card {
         background-color: #ffffff;
         border: 2px solid #cbd5e1;
@@ -152,7 +149,6 @@ st.markdown("""
         color: #00a884;
     }
     
-    /* Result Display Box */
     .result-display-box {
         background-color: #061d19;
         color: #ffffff;
@@ -169,7 +165,6 @@ st.markdown("""
         color: #00a884;
     }
     
-    /* STREAMLIT BUTTON DIRECT TARGETING */
     .stButton > button[data-testid="stBaseButton-primary"],
     button[kind="primary"],
     button[data-testid="stBaseButton-primary"] {
@@ -220,7 +215,6 @@ st.markdown("""
         font-size: 1.05rem !important;
     }
     
-    /* Hide Streamlit Chrome */
     #MainMenu, footer, header[data-testid="stHeader"] {
         display: none !important;
     }
@@ -286,7 +280,7 @@ def normalize_landmarks(hand_landmarks):
     max_value = max(max(abs(val) for val in temp_landmarks), 1e-6)
     return [val / max_value for val in temp_landmarks]
 
-# Class Processor untuk Streamlit-WebRTC (Thread Safe Initialization)
+# Class Processor untuk Streamlit-WebRTC
 class BISINDOProcessor(VideoProcessorBase):
     def __init__(self):
         self.current_word = ""
@@ -342,7 +336,6 @@ col_cam, col_info = st.columns([65, 35], gap="large")
 with col_cam:
     st.markdown('<div class="section-title">Stream Kamera Live</div>', unsafe_allow_html=True)
     
-    # Mode Pilihan Kamera
     cam_mode = st.radio(
         "Pilih Mode Kamera:",
         ["Kamera Native Streamlit (100% Bebas Error/Koneksi Cloud)", "Kamera WebRTC Live (Real-Time Stream)"],
@@ -351,7 +344,9 @@ with col_cam:
     )
     
     if "Kamera Native" in cam_mode:
-        img_buffer = st.camera_input("Ambil Foto Gestur Tangan Di Sini")
+        st.markdown('<div class="subtitle-desc">Kamera Native langsung mengalirkan gambar webcam melalui koneksi HTTPS tanpa pernah error.</div>', unsafe_allow_html=True)
+        img_buffer = st.camera_input("Kamera Native Live (Ambil Foto/Deteksi Instan)", key="native_cam_input")
+        
         if img_buffer is not None:
             bytes_data = img_buffer.getvalue()
             img_np = cv2.imdecode(np.frombuffer(bytes_data, np.uint8), cv2.IMREAD_COLOR)
@@ -386,9 +381,14 @@ with col_cam:
                 </div>
                 """, unsafe_allow_html=True)
                 
-                if st.button(f"➕ Tambahkan Huruf '{pred_label}' ke Hasil Kata", type="primary"):
-                    st.session_state.current_word += pred_label
-                    st.rerun()
+                col_b1, col_b2 = st.columns(2)
+                with col_b1:
+                    if st.button(f"➕ Tambahkan '{pred_label}' ke Kata", type="primary", use_container_width=True):
+                        st.session_state.current_word += pred_label
+                        st.rerun()
+                with col_b2:
+                    if st.button("🔄 Retake / Foto Ulang", type="secondary", use_container_width=True):
+                        st.rerun()
             else:
                 st.warning("⚠️ Tangan tidak terdeteksi di foto. Pastikan 1 tangan membentuk gestur BISINDO secara jelas di depan kamera!")
     else:
@@ -430,8 +430,8 @@ with col_info:
         <ol>
             <li>Pilih mode <b>Kamera Native Streamlit</b> di sebelah kiri.</li>
             <li>Arahkan 1 tangan membentuk gestur abjad BISINDO (A-Z) di depan kamera.</li>
-            <li>Klik tombol <b>Take Photo</b>.</li>
-            <li>Hasil terjemahan abjad A-Z dan akurasinya akan langsung muncul di kotak hasil!</li>
+            <li>Klik <b>Take Photo</b>.</li>
+            <li>Hasil terjemahan abjad A-Z dan akurasinya akan langsung muncul di kotak hijau!</li>
             <li>Klik tombol <b>Tambahkan Huruf</b> untuk menyusun menjadi kata utuh.</li>
         </ol>
     </div>
