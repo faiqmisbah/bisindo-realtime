@@ -18,6 +18,10 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# Inisialisasi Session State Teks Kata
+if "current_word" not in st.session_state:
+    st.session_state.current_word = ""
+
 # Custom Styling (FaiqDev Theme: Direct Button Type Targeting, High Visibility)
 st.markdown("""
 <style>
@@ -35,6 +39,13 @@ st.markdown("""
         padding-left: 2.5rem !important;
         padding-right: 2.5rem !important;
         max-width: 100% !important;
+    }
+    
+    /* Radio Option Text Styling (Perbaikan Warna Teks Radio) */
+    .stRadio label, .stRadio p, div[data-testid="stRadio"] label p {
+        color: #061d19 !important;
+        font-size: 1.02rem !important;
+        font-weight: 700 !important;
     }
     
     /* Floating Header Navbar */
@@ -141,7 +152,24 @@ st.markdown("""
         color: #00a884;
     }
     
-    /* STREAMLIT BUTTON DIRECT TARGETING (STRICT OVERRIDE) */
+    /* Result Display Box */
+    .result-display-box {
+        background-color: #061d19;
+        color: #ffffff;
+        border-radius: 16px;
+        padding: 1.2rem 1.6rem;
+        font-size: 1.5rem;
+        font-weight: 800;
+        margin-top: 1rem;
+        margin-bottom: 1rem;
+        border: 2px solid #00a884;
+        text-align: center;
+    }
+    .result-display-box span {
+        color: #00a884;
+    }
+    
+    /* STREAMLIT BUTTON DIRECT TARGETING */
     .stButton > button[data-testid="stBaseButton-primary"],
     button[kind="primary"],
     button[data-testid="stBaseButton-primary"] {
@@ -261,7 +289,7 @@ def normalize_landmarks(hand_landmarks):
 # Class Processor untuk Streamlit-WebRTC
 class BISINDOProcessor(VideoProcessorBase):
     def __init__(self):
-        self.current_word = ""
+        self.current_word = st.session_state.current_word
         self.last_prediction = None
         self.stable_frames = 0
         self.REQUIRED_FRAMES = 12
@@ -297,6 +325,7 @@ class BISINDOProcessor(VideoProcessorBase):
                     
                 if self.stable_frames == self.REQUIRED_FRAMES:
                     self.current_word += pred_label
+                    st.session_state.current_word = self.current_word
                     self.stable_frames = 0
                     
                 cv2.putText(img, f"Mengeja: {self.last_prediction} ({int(confidence*100)}%)", 
@@ -313,9 +342,8 @@ col_cam, col_info = st.columns([65, 35], gap="large")
 
 with col_cam:
     st.markdown('<div class="section-title">Stream Kamera Live</div>', unsafe_allow_html=True)
-    st.markdown('<div class="subtitle-desc">Pilih Mode Kamera yang sesuai dengan jaringan internet Anda:</div>', unsafe_allow_html=True)
     
-    # Mode Pilihan Kamera (WebRTC vs Kamera Native Direct HTTPS)
+    # Mode Pilihan Kamera (Perbaikan Teks & Fungsionalitas)
     cam_mode = st.radio(
         "Pilih Mode Kamera:",
         ["Kamera Native Streamlit (100% Bebas Error/Koneksi Cloud)", "Kamera WebRTC Live (Real-Time Stream)"],
@@ -336,6 +364,17 @@ with col_cam:
             
             if detection_result.hand_landmarks:
                 hand_landmarks = detection_result.hand_landmarks[0]
+                h, w, _ = img_np.shape
+                
+                # Gambar titik-titik landmark dan garis pada foto
+                for lm in hand_landmarks:
+                    lx, ly = int(lm.x * w), int(lm.y * h)
+                    cv2.circle(img_np, (lx, ly), 5, (0, 168, 132), -1)
+                
+                # Gambar lingkaran telunjuk
+                cx, cy = int(hand_landmarks[8].x * w), int(hand_landmarks[8].y * h)
+                cv2.circle(img_np, (cx, cy), 12, (132, 168, 0), cv2.FILLED)
+                
                 row = normalize_landmarks(hand_landmarks)
                 X_input = np.array(row, dtype=np.float32).reshape(1, 63, 1)
                 
@@ -344,9 +383,18 @@ with col_cam:
                 confidence = float(predictions[0][pred_index])
                 pred_label = str(classes[pred_index])
                 
-                st.success(f"Terdeteksi Abjad: **{pred_label}** (Akurasi: {int(confidence*100)}%)")
+                st.markdown(f"""
+                <div class="result-display-box">
+                    Terdeteksi Abjad BISINDO: <span>{pred_label}</span> (Akurasi: {int(confidence*100)}%)
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Tombol Tambahkan ke Kata Utama
+                if st.button(f"➕ Tambahkan Huruf '{pred_label}' ke Hasil Kata", type="primary"):
+                    st.session_state.current_word += pred_label
+                    st.rerun()
             else:
-                st.warning("Tangan tidak terdeteksi di kamera. Pastikan posisi tangan terlihat jelas!")
+                st.warning("⚠️ Tangan tidak terdeteksi di foto. Pastikan 1 tangan membentuk gestur BISINDO secara jelas di depan kamera!")
     else:
         rtc_config = RTCConfiguration({
             "iceServers": [
@@ -384,23 +432,34 @@ with col_info:
     st.markdown("""
     <div class="custom-card">
         <ol>
-            <li>Pilih mode kamera <b>Kamera Native Streamlit</b> untuk koneksi paling stabil di cloud.</li>
+            <li>Pilih mode <b>Kamera Native Streamlit</b> di sebelah kiri.</li>
             <li>Arahkan 1 tangan membentuk gestur abjad BISINDO (A-Z) di depan kamera.</li>
-            <li>Ambil foto atau gunakan stream live.</li>
-            <li>Teks hasil terjemahan langsung dianalisis otomatis oleh model CNN.</li>
+            <li>Klik tombol <b>Take Photo</b>.</li>
+            <li>Hasil terjemahan abjad A-Z dan akurasinya akan langsung muncul di kotak hasil!</li>
+            <li>Klik tombol <b>Tambahkan Huruf</b> untuk menyusun menjadi kata utuh.</li>
         </ol>
     </div>
     """, unsafe_allow_html=True)
 
     # 3. KONTROL KATA (KETIGA / PALING BAWAH)
     st.markdown('<div class="section-title">Kontrol Kata</div>', unsafe_allow_html=True)
+    st.markdown(f"""
+    <div style="background:#ffffff; border:2px solid #cbd5e1; border-radius:12px; padding:0.9rem 1.2rem; font-size:1.2rem; font-weight:700; color:#061d19; margin-bottom:1rem;">
+        Kata Terjemahan: <span style="color:#00a884;">{st.session_state.current_word if st.session_state.current_word else '-'}</span>
+    </div>
+    """, unsafe_allow_html=True)
+    
     btn_c1, btn_c2 = st.columns(2, gap="medium")
     with btn_c1:
         if st.button("Hapus Kata", type="primary", use_container_width=True):
+            st.session_state.current_word = ""
             if 'ctx' in locals() and ctx and ctx.video_processor:
                 ctx.video_processor.current_word = ""
+            st.rerun()
                 
     with btn_c2:
         if st.button("Hapus 1 Huruf", type="secondary", use_container_width=True):
+            st.session_state.current_word = st.session_state.current_word[:-1]
             if 'ctx' in locals() and ctx and ctx.video_processor:
                 ctx.video_processor.current_word = ctx.video_processor.current_word[:-1]
+            st.rerun()
