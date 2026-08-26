@@ -3,13 +3,13 @@ os.environ["TF_USE_LEGACY_KERAS"] = "1"
 os.environ["KERAS_BACKEND"] = "tensorflow"
 
 import streamlit as st
-import streamlit.components.v1 as components
 import cv2
 import numpy as np
 import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration, WebRtcMode
+from streamlit_autorefresh import st_autorefresh
 import av
 import base64
 
@@ -20,9 +20,11 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Inisialisasi Session State Teks Kata
+# Inisialisasi Session State Teks Kata & Realtime Loop
 if "current_word" not in st.session_state:
     st.session_state.current_word = ""
+if "auto_stream" not in st.session_state:
+    st.session_state.auto_stream = False
 
 # Custom Styling (FaiqDev Theme - High Contrast & Visibility)
 st.markdown("""
@@ -48,6 +50,12 @@ st.markdown("""
         font-size: 1.05rem !important;
         font-weight: 800 !important;
         opacity: 1 !important;
+    }
+    
+    .stCheckbox label, .stCheckbox p, div[data-testid="stCheckbox"] label p {
+        color: #061d19 !important;
+        font-size: 1.05rem !important;
+        font-weight: 800 !important;
     }
     
     .brand-header {
@@ -348,93 +356,16 @@ class BISINDOProcessor(VideoProcessorBase):
 
         return av.VideoFrame.from_ndarray(img, format="bgr24")
 
-# Component HTML5 Kamera Timer 3 Detik
-def timer_camera_component():
-    html_code = """
-    <div style="font-family: 'Inter', sans-serif; text-align: center;">
-        <video id="webcam" autoplay playsinline muted style="width:100%; max-height:480px; border-radius:16px; border:2px solid #cbd5e1; background:#000; transform: scaleX(-1); box-shadow: 0 4px 20px rgba(0,0,0,0.05);"></video>
-        <canvas id="canvas" style="display:none;"></canvas>
-        
-        <div id="timerDisplay" style="font-size:2rem; font-weight:900; color:#00a884; margin-top:12px; min-height:50px; text-shadow: 0 2px 8px rgba(0,168,132,0.2);"></div>
-        
-        <button id="timerBtn" style="background-color:#00a884; color:#ffffff; font-size:1.15rem; font-weight:800; border-radius:50px; border:2px solid #00a884; padding:0.9rem 1.8rem; cursor:pointer; width:100%; box-shadow:0 4px 15px rgba(0,168,132,0.35); transition: all 0.2s ease;">
-            ⏱️ Take Photo dengan Timer (Hitung Mundur 3 Detik)
-        </button>
-    </div>
-
-    <script>
-        const video = document.getElementById('webcam');
-        const canvas = document.getElementById('canvas');
-        const timerBtn = document.getElementById('timerBtn');
-        const timerDisplay = document.getElementById('timerDisplay');
-
-        // Minta akses kamera webcam secara langsung
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-            navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } })
-                .then(stream => {
-                    video.srcObject = stream;
-                })
-                .catch(err => {
-                    timerDisplay.style.color = '#ef4444';
-                    timerDisplay.innerText = "⚠️ Izinkan akses kamera pada browser Anda!";
-                });
-        }
-
-        timerBtn.onclick = () => {
-            timerBtn.disabled = true;
-            timerBtn.style.opacity = '0.6';
-            let count = 3;
-            timerDisplay.style.color = '#00a884';
-            timerDisplay.innerText = " Bersiap-siap memperagakan gestur: " + count + " detik...";
-            
-            const interval = setInterval(() => {
-                count--;
-                if (count > 0) {
-                    timerDisplay.innerText = " Bersiap-siap memperagakan gestur: " + count + " detik...";
-                } else {
-                    clearInterval(interval);
-                    timerDisplay.innerText = "📸 SNAP!";
-                    
-                    // Ambil gambar dari video stream ke canvas
-                    canvas.width = video.videoWidth || 640;
-                    canvas.height = video.videoHeight || 480;
-                    const ctx = canvas.getContext('2d');
-                    ctx.translate(canvas.width, 0);
-                    ctx.scale(-1, 1);
-                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                    
-                    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
-                    
-                    // Kirimkan Base64 Gambar ke Streamlit
-                    if (window.Streamlit) {
-                        window.Streamlit.setComponentValue(dataUrl);
-                    } else {
-                        const event = new CustomEvent("Streamlit:setComponentValue", { detail: dataUrl });
-                        window.dispatchEvent(event);
-                    }
-                    
-                    setTimeout(() => {
-                        timerDisplay.innerText = "";
-                        timerBtn.disabled = false;
-                        timerBtn.style.opacity = '1';
-                    }, 2000);
-                }
-            }, 1000);
-        };
-    </script>
-    """
-    return components.html(html_code, height=600)
-
 # Layout Utama Full Width
 col_cam, col_info = st.columns([65, 35], gap="large")
 
 with col_cam:
     st.markdown('<div class="section-title">Stream Kamera Live</div>', unsafe_allow_html=True)
     
-    # Mode Pilihan Kamera (Teks Gelap High-Contrast 100% Readability)
+    # Mode Pilihan Kamera
     cam_mode = st.radio(
         "📷 Mode Kamera:",
-        ["Kamera Native Timer 3 Detik (Paling Praktis & Bebas Error)", "Kamera WebRTC Live (Real-Time Stream)"],
+        ["Kamera Native Cloud (Deteksi Otomatis / Manual)", "Kamera WebRTC Live (Real-Time Stream)"],
         index=0,
         horizontal=True
     )
@@ -442,74 +373,70 @@ with col_cam:
     if "Kamera Native" in cam_mode:
         st.markdown("""
         <div style="background:#ffffff; border:2px solid #cbd5e1; border-radius:14px; padding:0.9rem 1.2rem; font-size:1rem; font-weight:700; color:#061d19; margin-bottom:1rem; box-shadow: 0 4px 12px rgba(0,0,0,0.03);">
-            ⏱️ <b>Fitur Kamera Timer 3 Detik:</b><br>
-            Klik tombol hijau <b>⏱️ Take Photo dengan Timer (Hitung Mundur 3 Detik)</b> di bawah layar kamera. Anda memiliki jeda waktu 3 detik penuh untuk membentuk gestur tangan secara sempurna sebelum foto otomatis terambil!
+            🎥 <b>Mode Kamera Native Terhubung:</b><br>
+            Aktifkan opsi <b>Mode Auto-Refresh (Deteksi Real-Time Otomatis)</b> di bawah agar kamera otomatis memfoto & mendeteksi gestur tangan Anda secara otomatis tanpa perlu terus mengklik tombol!
         </div>
         """, unsafe_allow_html=True)
         
-        # Panggil Component HTML5 Kamera Timer 3 Detik Custom
-        camera_data = timer_camera_component()
+        # Fitur Mode Auto-Refresh Continuous
+        auto_mode = st.checkbox("🔄 Mode Auto-Refresh Stream (Deteksi Real-Time Otomatis Setiap 2 Detik)", value=st.session_state.auto_stream)
+        st.session_state.auto_stream = auto_mode
         
-        # Pilihan Alternatif: Streamlit Native Fallback Camera Input
-        with st.expander("📷 Atau gunakan Kamera Bawaan Streamlit (Snapshot Manual)"):
-            img_buffer = st.camera_input("Snapshot Manual", key="native_cam_input_fallback")
-            if img_buffer is not None:
-                bytes_data = img_buffer.getvalue()
-                camera_data = "data:image/jpeg;base64," + base64.b64encode(bytes_data).decode()
+        if st.session_state.auto_stream:
+            # Trigger Auto Refresh setiap 1.8 detik
+            st_autorefresh(interval=1800, limit=200, key="bisindo_autorefresh_loop")
         
-        if camera_data:
-            try:
-                # Decode Base64 Data URL
-                header, encoded = camera_data.split(",", 1)
-                data = base64.b64decode(encoded)
-                img_np = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
+        img_buffer = st.camera_input("Kamera Native Live Stream", key="native_cam_input_main")
+        
+        if img_buffer is not None:
+            bytes_data = img_buffer.getvalue()
+            img_np = cv2.imdecode(np.frombuffer(bytes_data, np.uint8), cv2.IMREAD_COLOR)
+            img_np = cv2.flip(img_np, 1)
+            
+            rgb_image = cv2.cvtColor(img_np, cv2.COLOR_BGR2RGB)
+            mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_image)
+            detection_result = detector.detect(mp_image)
+            
+            if detection_result.hand_landmarks:
+                hand_landmarks = detection_result.hand_landmarks[0]
+                h, w, _ = img_np.shape
                 
-                rgb_image = cv2.cvtColor(img_np, cv2.COLOR_BGR2RGB)
-                mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_image)
-                detection_result = detector.detect(mp_image)
+                for lm in hand_landmarks:
+                    lx, ly = int(lm.x * w), int(lm.y * h)
+                    cv2.circle(img_np, (lx, ly), 5, (0, 168, 132), -1)
                 
-                if detection_result.hand_landmarks:
-                    hand_landmarks = detection_result.hand_landmarks[0]
-                    h, w, _ = img_np.shape
-                    
-                    for lm in hand_landmarks:
-                        lx, ly = int(lm.x * w), int(lm.y * h)
-                        cv2.circle(img_np, (lx, ly), 5, (0, 168, 132), -1)
-                    
-                    cx, cy = int(hand_landmarks[8].x * w), int(hand_landmarks[8].y * h)
-                    cv2.circle(img_np, (cx, cy), 12, (132, 168, 0), cv2.FILLED)
-                    
-                    row = normalize_landmarks(hand_landmarks)
-                    X_input = np.array(row, dtype=np.float32).reshape(1, 63, 1)
-                    
-                    predictions = model(X_input, training=False).numpy()
-                    pred_index = np.argmax(predictions)
-                    confidence = float(predictions[0][pred_index])
-                    pred_label = str(classes[pred_index])
-                    
-                    st.markdown(f"""
-                    <div class="result-display-box">
-                        Terdeteksi Abjad BISINDO: <span>{pred_label}</span> (Akurasi: {int(confidence*100)}%)
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    col_b1, col_b2 = st.columns(2)
-                    with col_b1:
-                        if st.button(f"➕ Tambahkan '{pred_label}' ke Kata Utama", type="primary", use_container_width=True):
-                            st.session_state.current_word += pred_label
-                            st.rerun()
-                    with col_b2:
-                        if st.button("🔄 Reset Hasil", type="secondary", use_container_width=True):
-                            st.rerun()
-                else:
-                    st.markdown("""
-                    <div class="warning-card-box">
-                        ⚠️ <b>Tangan Tidak Terdeteksi di Foto:</b><br>
-                        Pastikan 1 tangan membentuk gestur abjad BISINDO secara jelas & terang di depan kamera.
-                    </div>
-                    """, unsafe_allow_html=True)
-            except Exception as ex:
-                pass
+                cx, cy = int(hand_landmarks[8].x * w), int(hand_landmarks[8].y * h)
+                cv2.circle(img_np, (cx, cy), 12, (132, 168, 0), cv2.FILLED)
+                
+                row = normalize_landmarks(hand_landmarks)
+                X_input = np.array(row, dtype=np.float32).reshape(1, 63, 1)
+                
+                predictions = model(X_input, training=False).numpy()
+                pred_index = np.argmax(predictions)
+                confidence = float(predictions[0][pred_index])
+                pred_label = str(classes[pred_index])
+                
+                st.markdown(f"""
+                <div class="result-display-box">
+                    Terdeteksi Abjad BISINDO: <span>{pred_label}</span> (Akurasi: {int(confidence*100)}%)
+                </div>
+                """, unsafe_allow_html=True)
+                
+                col_b1, col_b2 = st.columns(2)
+                with col_b1:
+                    if st.button(f"➕ Tambahkan '{pred_label}' ke Kata Utama", type="primary", use_container_width=True):
+                        st.session_state.current_word += pred_label
+                        st.rerun()
+                with col_b2:
+                    if st.button("🔄 Reset Snapshot", type="secondary", use_container_width=True):
+                        st.rerun()
+            else:
+                st.markdown("""
+                <div class="warning-card-box">
+                    ⚠️ <b>Tangan Tidak Terdeteksi di Foto:</b><br>
+                    Pastikan 1 tangan membentuk gestur abjad BISINDO secara jelas & terang di depan kamera.
+                </div>
+                """, unsafe_allow_html=True)
     else:
         rtc_config = RTCConfiguration({
             "iceServers": [
@@ -547,10 +474,10 @@ with col_info:
     st.markdown("""
     <div class="custom-card">
         <ol>
-            <li>Klik tombol hijau <b>⏱️ Take Photo dengan Timer (Hitung Mundur 3 Detik)</b> di bawah kamera.</li>
-            <li>Peragakan gestur tangan abjad BISINDO (A-Z) selama hitung mundur <b>3... 2... 1...</b></li>
-            <li>Foto terambil otomatis dan hasil terjemahan abjad A-Z langsung muncul di banner hijau!</li>
-            <li>Klik tombol <b>Tambahkan Huruf</b> untuk merangkai kata.</li>
+            <li>Aktifkan centang <b>🔄 Mode Auto-Refresh Stream</b> untuk deteksi real-time otomatis.</li>
+            <li>Arahkan 1 tangan membentuk gestur abjad BISINDO (A-Z) di depan kamera.</li>
+            <li>Hasil terjemahan abjad A-Z dan akurasinya akan langsung diperbarui secara otomatis di banner hijau!</li>
+            <li>Klik <b>Tambahkan Huruf</b> untuk menyusun kata terjemahan.</li>
         </ol>
     </div>
     """, unsafe_allow_html=True)
