@@ -217,7 +217,6 @@ def load_resources():
         import tf_keras as legacy_keras
         model = legacy_keras.models.load_model('cnn_bisindo.h5', compile=False)
     except Exception:
-        # Fallback Presisi Persis (Valid Padding Shape 1792):
         import tensorflow as tf
         model = tf.keras.models.Sequential([
             tf.keras.layers.Input(shape=(63, 1)),
@@ -269,8 +268,6 @@ class BISINDOProcessor(VideoProcessorBase):
 
     def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
         img = frame.to_ndarray(format="bgr24")
-        
-        # Mirror image
         img = cv2.flip(img, 1)
         rgb_image = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_image)
@@ -279,8 +276,6 @@ class BISINDOProcessor(VideoProcessorBase):
         
         if detection_result.hand_landmarks:
             hand_landmarks = detection_result.hand_landmarks[0]
-            
-            # Gambar titik indikator di telunjuk (landmark 8)
             h, w, _ = img.shape
             cx, cy = int(hand_landmarks[8].x * w), int(hand_landmarks[8].y * h)
             cv2.circle(img, (cx, cy), 10, (132, 168, 0), cv2.FILLED)
@@ -288,9 +283,7 @@ class BISINDOProcessor(VideoProcessorBase):
             row = normalize_landmarks(hand_landmarks)
             X_input = np.array(row, dtype=np.float32).reshape(1, 63, 1)
             
-            # Eksekusi langsung model
             predictions = model(X_input, training=False).numpy()
-            
             pred_index = np.argmax(predictions)
             confidence = float(predictions[0][pred_index])
             pred_label = str(classes[pred_index])
@@ -306,11 +299,9 @@ class BISINDOProcessor(VideoProcessorBase):
                     self.current_word += pred_label
                     self.stable_frames = 0
                     
-                # Overlay Teks Real-Time pada Video Stream (Atas)
                 cv2.putText(img, f"Mengeja: {self.last_prediction} ({int(confidence*100)}%)", 
                             (15, 45), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 0), 2)
                             
-        # Baris Bawah (Hasil Terjemahan Kata Real-Time)
         cv2.rectangle(img, (0, img.shape[0]-65), (img.shape[1], img.shape[0]), (6, 29, 25), -1)
         cv2.putText(img, f"Hasil Kata: {self.current_word}", (15, img.shape[0]-22), 
                     cv2.FONT_HERSHEY_SIMPLEX, 1.1, (132, 168, 0), 2)
@@ -322,41 +313,60 @@ col_cam, col_info = st.columns([65, 35], gap="large")
 
 with col_cam:
     st.markdown('<div class="section-title">Stream Kamera Live</div>', unsafe_allow_html=True)
-    st.markdown('<div class="subtitle-desc">Hasil terjemahan kata tampil otomatis di baris bawah video.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="subtitle-desc">Pilih Mode Kamera yang sesuai dengan jaringan internet Anda:</div>', unsafe_allow_html=True)
     
-    # Konfigurasi WebRTC ICE dengan Server TURN Relay Publik (Bypass NAT/Firewall Cloud)
-    rtc_config = RTCConfiguration({
-        "iceServers": [
-            {"urls": ["stun:stun.l.google.com:19302"]},
-            {"urls": ["stun:stun1.l.google.com:19302"]},
-            {"urls": ["stun:stun2.l.google.com:19302"]},
-            {"urls": ["stun:openrelay.metered.ca:80"]},
-            {
-                "urls": ["turn:openrelay.metered.ca:80"],
-                "username": "openrelay",
-                "credential": "openrelay"
-            },
-            {
-                "urls": ["turn:openrelay.metered.ca:443"],
-                "username": "openrelay",
-                "credential": "openrelay"
-            },
-            {
-                "urls": ["turns:openrelay.metered.ca:443?transport=tcp"],
-                "username": "openrelay",
-                "credential": "openrelay"
-            }
-        ]
-    })
-    
-    ctx = webrtc_streamer(
-        key="bisindo-camera",
-        mode=WebRtcMode.SENDRECV,
-        rtc_configuration=rtc_config,
-        video_processor_factory=BISINDOProcessor,
-        media_stream_constraints={"video": True, "audio": False},
-        async_processing=True,
+    # Mode Pilihan Kamera (WebRTC vs Kamera Native Direct HTTPS)
+    cam_mode = st.radio(
+        "Pilih Mode Kamera:",
+        ["Kamera Native Streamlit (100% Bebas Error/Koneksi Cloud)", "Kamera WebRTC Live (Real-Time Stream)"],
+        index=0,
+        horizontal=True
     )
+    
+    if "Kamera Native" in cam_mode:
+        img_buffer = st.camera_input("Ambil Foto Gestur Tangani Di Sini")
+        if img_buffer is not None:
+            bytes_data = img_buffer.getvalue()
+            img_np = cv2.imdecode(np.frombuffer(bytes_data, np.uint8), cv2.IMREAD_COLOR)
+            img_np = cv2.flip(img_np, 1)
+            
+            rgb_image = cv2.cvtColor(img_np, cv2.COLOR_BGR2RGB)
+            mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_image)
+            detection_result = detector.detect(mp_image)
+            
+            if detection_result.hand_landmarks:
+                hand_landmarks = detection_result.hand_landmarks[0]
+                row = normalize_landmarks(hand_landmarks)
+                X_input = np.array(row, dtype=np.float32).reshape(1, 63, 1)
+                
+                predictions = model(X_input, training=False).numpy()
+                pred_index = np.argmax(predictions)
+                confidence = float(predictions[0][pred_index])
+                pred_label = str(classes[pred_index])
+                
+                st.success(f"Terdeteksi Abjad: **{pred_label}** (Akurasi: {int(confidence*100)}%)")
+            else:
+                st.warning("Tangan tidak terdeteksi di kamera. Pastikan posisi tangan terlihat jelas!")
+    else:
+        rtc_config = RTCConfiguration({
+            "iceServers": [
+                {"urls": ["stun:stun.l.google.com:19302"]},
+                {"urls": ["stun:stun1.l.google.com:19302"]},
+                {"urls": ["stun:openrelay.metered.ca:80"]},
+                {"urls": ["turn:openrelay.metered.ca:80"], "username": "openrelay", "credential": "openrelay"},
+                {"urls": ["turn:openrelay.metered.ca:443"], "username": "openrelay", "credential": "openrelay"},
+                {"urls": ["turns:openrelay.metered.ca:443?transport=tcp"], "username": "openrelay", "credential": "openrelay"}
+            ]
+        })
+        
+        ctx = webrtc_streamer(
+            key="bisindo-camera",
+            mode=WebRtcMode.SENDRECV,
+            rtc_configuration=rtc_config,
+            video_processor_factory=BISINDOProcessor,
+            media_stream_constraints={"video": True, "audio": False},
+            async_processing=True,
+        )
 
 with col_info:
     # 1. INFORMASI MODEL AI (PERTAMA)
@@ -374,11 +384,10 @@ with col_info:
     st.markdown("""
     <div class="custom-card">
         <ol>
-            <li>Klik tombol <b>START</b> untuk mengaktifkan webcam.</li>
+            <li>Pilih mode kamera <b>Kamera Native Streamlit</b> untuk koneksi paling stabil di cloud.</li>
             <li>Arahkan 1 tangan membentuk gestur abjad BISINDO (A-Z) di depan kamera.</li>
-            <li>Tahan gestur tangan selama <b>~0.5 detik</b> hingga huruf tercatat.</li>
-            <li>Teks hasil terjemahan langsung muncul secara otomatis di baris bawah video.</li>
-            <li>Gunakan tombol di bawah untuk mengedit atau menghapus kata.</li>
+            <li>Ambil foto atau gunakan stream live.</li>
+            <li>Teks hasil terjemahan langsung dianalisis otomatis oleh model CNN.</li>
         </ol>
     </div>
     """, unsafe_allow_html=True)
@@ -388,10 +397,10 @@ with col_info:
     btn_c1, btn_c2 = st.columns(2, gap="medium")
     with btn_c1:
         if st.button("Hapus Kata", type="primary", use_container_width=True):
-            if ctx.video_processor:
+            if 'ctx' in locals() and ctx and ctx.video_processor:
                 ctx.video_processor.current_word = ""
                 
     with btn_c2:
         if st.button("Hapus 1 Huruf", type="secondary", use_container_width=True):
-            if ctx.video_processor:
+            if 'ctx' in locals() and ctx and ctx.video_processor:
                 ctx.video_processor.current_word = ctx.video_processor.current_word[:-1]
