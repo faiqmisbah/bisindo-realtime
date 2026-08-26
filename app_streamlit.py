@@ -10,6 +10,7 @@ from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration, WebRtcMode
 import av
+import time
 
 # 1. Konfigurasi Halaman Streamlit
 st.set_page_config(
@@ -21,8 +22,6 @@ st.set_page_config(
 # Inisialisasi Session State Teks Kata & Settings
 if "current_word" not in st.session_state:
     st.session_state.current_word = ""
-if "auto_add" not in st.session_state:
-    st.session_state.auto_add = True
 
 # Custom Styling (FaiqDev Theme)
 st.markdown("""
@@ -43,9 +42,10 @@ st.markdown("""
         max-width: 100% !important;
     }
     
-    .stRadio label, .stRadio p, div[data-testid="stRadio"] label p {
+    /* Segmented Control / Radio Pill Styling */
+    div[data-testid="stSegmentedControl"] button, .stRadio label {
         color: #061d19 !important;
-        font-size: 1.02rem !important;
+        font-size: 1.05rem !important;
         font-weight: 700 !important;
     }
     
@@ -165,7 +165,19 @@ st.markdown("""
     }
     .result-display-box span {
         color: #00a884;
+        font-size: 2.2rem;
+    }
+    
+    .countdown-banner {
+        background-color: #00a884;
+        color: #ffffff;
         font-size: 2rem;
+        font-weight: 900;
+        padding: 1rem;
+        border-radius: 14px;
+        text-align: center;
+        margin-bottom: 1rem;
+        box-shadow: 0 6px 20px rgba(0, 168, 132, 0.4);
     }
     
     .stButton > button[data-testid="stBaseButton-primary"],
@@ -339,25 +351,32 @@ col_cam, col_info = st.columns([65, 35], gap="large")
 with col_cam:
     st.markdown('<div class="section-title">Stream Kamera Live</div>', unsafe_allow_html=True)
     
+    # Mode Pilihan Kamera Elegan (Pill / Tabs)
     cam_mode = st.radio(
-        "Pilih Mode Kamera:",
-        ["Kamera Native Streamlit (100% Bebas Error/Koneksi Cloud)", "Kamera WebRTC Live (Real-Time Stream)"],
+        "📷 Mode Kamera:",
+        ["Kamera Native Cloud (Paling Rapi & Bebas Error)", "Kamera WebRTC Live (Real-Time Stream)"],
         index=0,
         horizontal=True
     )
     
     if "Kamera Native" in cam_mode:
         st.markdown("""
-        <div style="background:#e2e8f0; border-radius:10px; padding:0.6rem 1rem; font-size:0.92rem; color:#334155; margin-bottom:0.8rem;">
-            💡 <b>Tips Penggunaan Praktis:</b><br>
-            • Tekan <b>Tombol SPASI (`Spacebar`) / Enter</b> di keyboard untuk mengambil foto secara otomatis tanpa perlu mengklik tetikus/mouse!<br>
-            • Centang opsi di bawah agar huruf terdeteksi otomatis langsung masuk ke kata terjemahan.
+        <div style="background:#ffffff; border:2px solid #cbd5e1; border-radius:14px; padding:0.9rem 1.2rem; font-size:0.95rem; color:#334155; margin-bottom:1rem; box-shadow: 0 4px 12px rgba(0,0,0,0.02);">
+            ⏱️ <b>Fitur Timer 3 Detik:</b> Klik tombol <b>Timer Take Photo (3 Detik)</b> untuk bersiap-siap memperagakan gestur sebelum foto otomatis terambil!
         </div>
         """, unsafe_allow_html=True)
         
-        st.session_state.auto_add = st.checkbox("⚡ Otomatis tambahkan huruf ke kata setelah difoto", value=st.session_state.auto_add)
+        # Fitur Timer Hitung Mundur (Countdown Timer 3 Detik)
+        if st.button("⏱️ Timer Take Photo (Hitung Mundur 3 Detik)", type="primary", use_container_width=True):
+            placeholder_timer = st.empty()
+            for countdown in [3, 2, 1]:
+                placeholder_timer.markdown(f'<div class="countdown-banner"> Bersiap-siap memperagakan gestur: {countdown} detik...</div>', unsafe_allow_html=True)
+                time.sleep(1)
+            placeholder_timer.markdown('<div class="countdown-banner">📸 SNAP! Silakan Ambil Foto di Bawah...</div>', unsafe_allow_html=True)
+            time.sleep(0.5)
+            placeholder_timer.empty()
         
-        img_buffer = st.camera_input("Kamera Native Live (Tekan SPASI di Keyboard untuk Foto)", key="native_cam_input")
+        img_buffer = st.camera_input("Kamera Native (Tekan Spasi atau klik tombol di atas)", key="native_cam_input")
         
         if img_buffer is not None:
             bytes_data = img_buffer.getvalue()
@@ -393,19 +412,13 @@ with col_cam:
                 </div>
                 """, unsafe_allow_html=True)
                 
-                # Fitur Otomatis Tambah Teks ke Kata Jika Centang Aktif
-                if st.session_state.auto_add and 'last_added_file' not in st.session_state or st.session_state.get('last_added_file') != img_buffer.id:
-                    st.session_state.current_word += pred_label
-                    st.session_state.last_added_file = img_buffer.id
-                    st.rerun()
-                
                 col_b1, col_b2 = st.columns(2)
                 with col_b1:
-                    if st.button(f"➕ Tambahkan '{pred_label}' Manual Lagi", type="primary", use_container_width=True):
+                    if st.button(f"➕ Tambahkan '{pred_label}' ke Kata", type="primary", use_container_width=True):
                         st.session_state.current_word += pred_label
                         st.rerun()
                 with col_b2:
-                    if st.button("🔄 Foto Ulang (Clear Snapshot)", type="secondary", use_container_width=True):
+                    if st.button("🔄 Foto Ulang (Reset)", type="secondary", use_container_width=True):
                         st.rerun()
             else:
                 st.warning("⚠️ Tangan tidak terdeteksi di foto. Pastikan 1 tangan membentuk gestur BISINDO secara jelas di depan kamera!")
@@ -446,10 +459,11 @@ with col_info:
     st.markdown("""
     <div class="custom-card">
         <ol>
-            <li>Gunakan <b>Tombol SPASI (`Spacebar`) / Enter</b> di keyboard untuk mengambil foto secara instan tanpa perlu menyentuh mouse!</li>
-            <li>Arahkan 1 tangan membentuk gestur abjad BISINDO (A-Z).</li>
-            <li>Huruf terdeteksi akan otomatis langsung masuk ke susunan kata!</li>
-            <li>Gunakan tombol <b>Hapus Kata</b> atau <b>Hapus 1 Huruf</b> untuk mengedit.</li>
+            <li>Klik tombol <b>⏱️ Timer Take Photo (Hitung Mundur 3 Detik)</b>.</li>
+            <li>Ada jeda hitung mundur <b>3... 2... 1...</b> untuk bersiap memperagakan gestur tangan.</li>
+            <li>Klik <b>Take Photo</b> untuk mengonfirmasi foto.</li>
+            <li>Hasil abjad A-Z dan akurasi tinggi (misal: 100%) langsung muncul di banner hijau!</li>
+            <li>Klik tombol <b>Tambahkan Huruf</b> untuk menyusun ke kata utama.</li>
         </ol>
     </div>
     """, unsafe_allow_html=True)
