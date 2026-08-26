@@ -3,6 +3,7 @@ os.environ["TF_USE_LEGACY_KERAS"] = "1"
 os.environ["KERAS_BACKEND"] = "tensorflow"
 
 import streamlit as st
+import streamlit.components.v1 as components
 import cv2
 import numpy as np
 import mediapipe as mp
@@ -10,7 +11,7 @@ from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration, WebRtcMode
 import av
-import time
+import base64
 
 # 1. Konfigurasi Halaman Streamlit
 st.set_page_config(
@@ -19,11 +20,11 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Inisialisasi Session State Teks Kata & Settings
+# Inisialisasi Session State Teks Kata
 if "current_word" not in st.session_state:
     st.session_state.current_word = ""
 
-# Custom Styling (FaiqDev Theme)
+# Custom Styling (FaiqDev Theme - High Contrast & Visibility Override)
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
@@ -42,10 +43,17 @@ st.markdown("""
         max-width: 100% !important;
     }
     
-    /* Segmented Control / Radio Pill Styling */
-    div[data-testid="stSegmentedControl"] button, .stRadio label {
+    /* Strict Visibility Override for Radio Labels and Text */
+    .stRadio label, .stRadio p, div[data-testid="stRadio"] label p, div[data-testid="stRadio"] p {
         color: #061d19 !important;
         font-size: 1.05rem !important;
+        font-weight: 800 !important;
+        opacity: 1 !important;
+    }
+    
+    /* Strict Visibility for Warnings and Alerts */
+    [data-testid="stAlert"] *, .stAlert p {
+        color: #061d19 !important;
         font-weight: 700 !important;
     }
     
@@ -104,8 +112,9 @@ st.markdown("""
     
     .subtitle-desc {
         font-size: 1rem;
-        color: #64748b;
+        color: #475569;
         margin-bottom: 1.2rem;
+        font-weight: 600;
     }
     
     .custom-card {
@@ -168,16 +177,17 @@ st.markdown("""
         font-size: 2.2rem;
     }
     
-    .countdown-banner {
-        background-color: #00a884;
-        color: #ffffff;
-        font-size: 2rem;
-        font-weight: 900;
-        padding: 1rem;
+    .warning-card-box {
+        background-color: #fff7ed;
+        border: 2px solid #fdba74;
+        border-left: 6px solid #f97316;
         border-radius: 14px;
-        text-align: center;
+        padding: 1rem 1.4rem;
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: #9a3412;
+        margin-top: 1rem;
         margin-bottom: 1rem;
-        box-shadow: 0 6px 20px rgba(0, 168, 132, 0.4);
     }
     
     .stButton > button[data-testid="stBaseButton-primary"],
@@ -351,32 +361,23 @@ col_cam, col_info = st.columns([65, 35], gap="large")
 with col_cam:
     st.markdown('<div class="section-title">Stream Kamera Live</div>', unsafe_allow_html=True)
     
-    # Mode Pilihan Kamera Elegan (Pill / Tabs)
+    # Mode Pilihan Kamera (Teks Gelap Bold High Contrast)
     cam_mode = st.radio(
         "📷 Mode Kamera:",
-        ["Kamera Native Cloud (Paling Rapi & Bebas Error)", "Kamera WebRTC Live (Real-Time Stream)"],
+        ["Kamera Native Timer 3 Detik (Paling Praktis & Bebas Error)", "Kamera WebRTC Live (Real-Time Stream)"],
         index=0,
         horizontal=True
     )
     
     if "Kamera Native" in cam_mode:
         st.markdown("""
-        <div style="background:#ffffff; border:2px solid #cbd5e1; border-radius:14px; padding:0.9rem 1.2rem; font-size:0.95rem; color:#334155; margin-bottom:1rem; box-shadow: 0 4px 12px rgba(0,0,0,0.02);">
-            ⏱️ <b>Fitur Timer 3 Detik:</b> Klik tombol <b>Timer Take Photo (3 Detik)</b> untuk bersiap-siap memperagakan gestur sebelum foto otomatis terambil!
+        <div style="background:#ffffff; border:2px solid #cbd5e1; border-radius:14px; padding:0.9rem 1.2rem; font-size:1rem; font-weight:700; color:#061d19; margin-bottom:1rem; box-shadow: 0 4px 12px rgba(0,0,0,0.03);">
+            ⏱️ <b>Petunjuk Kamera Timer 3 Detik:</b><br>
+            Klik tombol <b>Take Photo dengan Timer (3 Detik)</b> di bawah kamera. Kamera akan menghitung mundur <b>3... 2... 1...</b> sehingga Anda punya jeda waktu untuk membentuk gestur isyarat tangan secara sempurna!
         </div>
         """, unsafe_allow_html=True)
         
-        # Fitur Timer Hitung Mundur (Countdown Timer 3 Detik)
-        if st.button("⏱️ Timer Take Photo (Hitung Mundur 3 Detik)", type="primary", use_container_width=True):
-            placeholder_timer = st.empty()
-            for countdown in [3, 2, 1]:
-                placeholder_timer.markdown(f'<div class="countdown-banner"> Bersiap-siap memperagakan gestur: {countdown} detik...</div>', unsafe_allow_html=True)
-                time.sleep(1)
-            placeholder_timer.markdown('<div class="countdown-banner">📸 SNAP! Silakan Ambil Foto di Bawah...</div>', unsafe_allow_html=True)
-            time.sleep(0.5)
-            placeholder_timer.empty()
-        
-        img_buffer = st.camera_input("Kamera Native (Tekan Spasi atau klik tombol di atas)", key="native_cam_input")
+        img_buffer = st.camera_input("Kamera Native (Gunakan Tombol Timer atau Spasi)", key="native_cam_input")
         
         if img_buffer is not None:
             bytes_data = img_buffer.getvalue()
@@ -414,14 +415,19 @@ with col_cam:
                 
                 col_b1, col_b2 = st.columns(2)
                 with col_b1:
-                    if st.button(f"➕ Tambahkan '{pred_label}' ke Kata", type="primary", use_container_width=True):
+                    if st.button(f"➕ Tambahkan '{pred_label}' ke Kata Utama", type="primary", use_container_width=True):
                         st.session_state.current_word += pred_label
                         st.rerun()
                 with col_b2:
-                    if st.button("🔄 Foto Ulang (Reset)", type="secondary", use_container_width=True):
+                    if st.button("🔄 Clear / Foto Ulang", type="secondary", use_container_width=True):
                         st.rerun()
             else:
-                st.warning("⚠️ Tangan tidak terdeteksi di foto. Pastikan 1 tangan membentuk gestur BISINDO secara jelas di depan kamera!")
+                st.markdown("""
+                <div class="warning-card-box">
+                    ⚠️ <b>Tangan Tidak Terdeteksi di Foto:</b><br>
+                    Pastikan 1 tangan membentuk gestur abjad BISINDO secara jelas & terang di depan kamera.
+                </div>
+                """, unsafe_allow_html=True)
     else:
         rtc_config = RTCConfiguration({
             "iceServers": [
@@ -459,11 +465,10 @@ with col_info:
     st.markdown("""
     <div class="custom-card">
         <ol>
-            <li>Klik tombol <b>⏱️ Timer Take Photo (Hitung Mundur 3 Detik)</b>.</li>
-            <li>Ada jeda hitung mundur <b>3... 2... 1...</b> untuk bersiap memperagakan gestur tangan.</li>
-            <li>Klik <b>Take Photo</b> untuk mengonfirmasi foto.</li>
-            <li>Hasil abjad A-Z dan akurasi tinggi (misal: 100%) langsung muncul di banner hijau!</li>
-            <li>Klik tombol <b>Tambahkan Huruf</b> untuk menyusun ke kata utama.</li>
+            <li>Klik tombol <b>Take Photo / Spasi</b> pada kamera.</li>
+            <li>Bentuk gestur tangan abjad BISINDO (A-Z) di depan kamera.</li>
+            <li>Hasil terjemahan abjad & akurasi tinggi (misal: 100%) langsung muncul di banner hijau!</li>
+            <li>Klik tombol <b>Tambahkan Huruf</b> untuk merangkai kata.</li>
         </ol>
     </div>
     """, unsafe_allow_html=True)
