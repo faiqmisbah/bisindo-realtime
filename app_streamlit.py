@@ -18,7 +18,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Inisialisasi Session State Teks Kata
+# Inisialisasi Session State Teks Kata (Thread Safe)
 if "current_word" not in st.session_state:
     st.session_state.current_word = ""
 
@@ -286,10 +286,10 @@ def normalize_landmarks(hand_landmarks):
     max_value = max(max(abs(val) for val in temp_landmarks), 1e-6)
     return [val / max_value for val in temp_landmarks]
 
-# Class Processor untuk Streamlit-WebRTC
+# Class Processor untuk Streamlit-WebRTC (Thread Safe Initialization)
 class BISINDOProcessor(VideoProcessorBase):
     def __init__(self):
-        self.current_word = st.session_state.current_word
+        self.current_word = ""
         self.last_prediction = None
         self.stable_frames = 0
         self.REQUIRED_FRAMES = 12
@@ -325,7 +325,6 @@ class BISINDOProcessor(VideoProcessorBase):
                     
                 if self.stable_frames == self.REQUIRED_FRAMES:
                     self.current_word += pred_label
-                    st.session_state.current_word = self.current_word
                     self.stable_frames = 0
                     
                 cv2.putText(img, f"Mengeja: {self.last_prediction} ({int(confidence*100)}%)", 
@@ -343,7 +342,7 @@ col_cam, col_info = st.columns([65, 35], gap="large")
 with col_cam:
     st.markdown('<div class="section-title">Stream Kamera Live</div>', unsafe_allow_html=True)
     
-    # Mode Pilihan Kamera (Perbaikan Teks & Fungsionalitas)
+    # Mode Pilihan Kamera
     cam_mode = st.radio(
         "Pilih Mode Kamera:",
         ["Kamera Native Streamlit (100% Bebas Error/Koneksi Cloud)", "Kamera WebRTC Live (Real-Time Stream)"],
@@ -352,7 +351,7 @@ with col_cam:
     )
     
     if "Kamera Native" in cam_mode:
-        img_buffer = st.camera_input("Ambil Foto Gestur Tangani Di Sini")
+        img_buffer = st.camera_input("Ambil Foto Gestur Tangan Di Sini")
         if img_buffer is not None:
             bytes_data = img_buffer.getvalue()
             img_np = cv2.imdecode(np.frombuffer(bytes_data, np.uint8), cv2.IMREAD_COLOR)
@@ -366,12 +365,10 @@ with col_cam:
                 hand_landmarks = detection_result.hand_landmarks[0]
                 h, w, _ = img_np.shape
                 
-                # Gambar titik-titik landmark dan garis pada foto
                 for lm in hand_landmarks:
                     lx, ly = int(lm.x * w), int(lm.y * h)
                     cv2.circle(img_np, (lx, ly), 5, (0, 168, 132), -1)
                 
-                # Gambar lingkaran telunjuk
                 cx, cy = int(hand_landmarks[8].x * w), int(hand_landmarks[8].y * h)
                 cv2.circle(img_np, (cx, cy), 12, (132, 168, 0), cv2.FILLED)
                 
@@ -389,7 +386,6 @@ with col_cam:
                 </div>
                 """, unsafe_allow_html=True)
                 
-                # Tombol Tambahkan ke Kata Utama
                 if st.button(f"➕ Tambahkan Huruf '{pred_label}' ke Hasil Kata", type="primary"):
                     st.session_state.current_word += pred_label
                     st.rerun()
