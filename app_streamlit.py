@@ -9,9 +9,7 @@ import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration, WebRtcMode
-from streamlit_autorefresh import st_autorefresh
 import av
-import base64
 
 # 1. Konfigurasi Halaman Streamlit
 st.set_page_config(
@@ -20,11 +18,9 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Inisialisasi Session State Teks Kata & Realtime Loop
+# Inisialisasi Session State Teks Kata
 if "current_word" not in st.session_state:
     st.session_state.current_word = ""
-if "auto_stream" not in st.session_state:
-    st.session_state.auto_stream = False
 
 # Custom Styling (FaiqDev Theme - High Contrast & Visibility)
 st.markdown("""
@@ -50,12 +46,6 @@ st.markdown("""
         font-size: 1.05rem !important;
         font-weight: 800 !important;
         opacity: 1 !important;
-    }
-    
-    .stCheckbox label, .stCheckbox p, div[data-testid="stCheckbox"] label p {
-        color: #061d19 !important;
-        font-size: 1.05rem !important;
-        font-weight: 800 !important;
     }
     
     .brand-header {
@@ -365,28 +355,13 @@ with col_cam:
     # Mode Pilihan Kamera
     cam_mode = st.radio(
         "📷 Mode Kamera:",
-        ["Kamera Native Cloud (Deteksi Otomatis / Manual)", "Kamera WebRTC Live (Real-Time Stream)"],
+        ["Kamera Native Cloud (1 Take 1 Take - Presisi 100%)", "Kamera WebRTC Live (Real-Time Stream)"],
         index=0,
         horizontal=True
     )
     
     if "Kamera Native" in cam_mode:
-        st.markdown("""
-        <div style="background:#ffffff; border:2px solid #cbd5e1; border-radius:14px; padding:0.9rem 1.2rem; font-size:1rem; font-weight:700; color:#061d19; margin-bottom:1rem; box-shadow: 0 4px 12px rgba(0,0,0,0.03);">
-            🎥 <b>Mode Kamera Native Terhubung:</b><br>
-            Aktifkan opsi <b>Mode Auto-Refresh (Deteksi Real-Time Otomatis)</b> di bawah agar kamera otomatis memfoto & mendeteksi gestur tangan Anda secara otomatis tanpa perlu terus mengklik tombol!
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Fitur Mode Auto-Refresh Continuous
-        auto_mode = st.checkbox("🔄 Mode Auto-Refresh Stream (Deteksi Real-Time Otomatis Setiap 2 Detik)", value=st.session_state.auto_stream)
-        st.session_state.auto_stream = auto_mode
-        
-        if st.session_state.auto_stream:
-            # Trigger Auto Refresh setiap 1.8 detik
-            st_autorefresh(interval=1800, limit=200, key="bisindo_autorefresh_loop")
-        
-        img_buffer = st.camera_input("Kamera Native Live Stream", key="native_cam_input_main")
+        img_buffer = st.camera_input("Snapshot Kamera Native (Tekan Spasi atau klik tombol di bawah)", key="native_cam_input_clean")
         
         if img_buffer is not None:
             bytes_data = img_buffer.getvalue()
@@ -428,7 +403,7 @@ with col_cam:
                         st.session_state.current_word += pred_label
                         st.rerun()
                 with col_b2:
-                    if st.button("🔄 Reset Snapshot", type="secondary", use_container_width=True):
+                    if st.button("🔄 Snapshot Ulang", type="secondary", use_container_width=True):
                         st.rerun()
             else:
                 st.markdown("""
@@ -438,15 +413,22 @@ with col_cam:
                 </div>
                 """, unsafe_allow_html=True)
     else:
+        # Konfigurasi WebRTC ICE Lengkap (Multi STUN Cloudflare + Twilio + Google & TURN Relay OpenRelay UDP/TCP/TLS)
         rtc_config = RTCConfiguration({
             "iceServers": [
                 {"urls": ["stun:stun.l.google.com:19302"]},
                 {"urls": ["stun:stun1.l.google.com:19302"]},
-                {"urls": ["stun:openrelay.metered.ca:80"]},
+                {"urls": ["stun:stun2.l.google.com:19302"]},
+                {"urls": ["stun:stun3.l.google.com:19302"]},
+                {"urls": ["stun:stun4.l.google.com:19302"]},
+                {"urls": ["stun:stun.cloudflare.com:3478"]},
+                {"urls": ["stun:global.stun.twilio.com:3478"]},
                 {"urls": ["turn:openrelay.metered.ca:80"], "username": "openrelay", "credential": "openrelay"},
                 {"urls": ["turn:openrelay.metered.ca:443"], "username": "openrelay", "credential": "openrelay"},
+                {"urls": ["turn:openrelay.metered.ca:443?transport=tcp"], "username": "openrelay", "credential": "openrelay"},
                 {"urls": ["turns:openrelay.metered.ca:443?transport=tcp"], "username": "openrelay", "credential": "openrelay"}
-            ]
+            ],
+            "iceTransportPolicy": "all"
         })
         
         ctx = webrtc_streamer(
@@ -454,8 +436,17 @@ with col_cam:
             mode=WebRtcMode.SENDRECV,
             rtc_configuration=rtc_config,
             video_processor_factory=BISINDOProcessor,
-            media_stream_constraints={"video": True, "audio": False},
+            media_stream_constraints={
+                "video": {"width": {"ideal": 640}, "height": {"ideal": 480}, "frameRate": {"ideal": 15}}, 
+                "audio": False
+            },
             async_processing=True,
+            video_html_attrs={
+                "style": {"width": "100%", "margin": "0 auto", "border-radius": "16px"},
+                "controls": False,
+                "autoPlay": True,
+                "muted": True
+            }
         )
 
 with col_info:
@@ -474,9 +465,9 @@ with col_info:
     st.markdown("""
     <div class="custom-card">
         <ol>
-            <li>Aktifkan centang <b>🔄 Mode Auto-Refresh Stream</b> untuk deteksi real-time otomatis.</li>
-            <li>Arahkan 1 tangan membentuk gestur abjad BISINDO (A-Z) di depan kamera.</li>
-            <li>Hasil terjemahan abjad A-Z dan akurasinya akan langsung diperbarui secara otomatis di banner hijau!</li>
+            <li>Pilih mode kamera (Kamera Native atau Kamera WebRTC Live).</li>
+            <li>Arahkan 1 tangan membentuk gestur abjad BISINDO (A-Z).</li>
+            <li>Hasil terjemahan abjad A-Z dan akurasi tinggi (misal: 100%) langsung muncul di banner hijau!</li>
             <li>Klik <b>Tambahkan Huruf</b> untuk menyusun kata terjemahan.</li>
         </ol>
     </div>
