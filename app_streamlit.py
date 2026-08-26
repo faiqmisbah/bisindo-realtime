@@ -3,13 +3,12 @@ os.environ["TF_USE_LEGACY_KERAS"] = "1"
 os.environ["KERAS_BACKEND"] = "tensorflow"
 
 import streamlit as st
-import streamlit.components.v1 as components
-from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration, WebRtcMode
 import cv2
 import numpy as np
 import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
+from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration, WebRtcMode
 import av
 
 # 1. Konfigurasi Halaman Streamlit
@@ -19,9 +18,11 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Inisialisasi Session State Teks Kata
+# Inisialisasi Session State Teks Kata & Settings
 if "current_word" not in st.session_state:
     st.session_state.current_word = ""
+if "auto_add" not in st.session_state:
+    st.session_state.auto_add = True
 
 # Custom Styling (FaiqDev Theme)
 st.markdown("""
@@ -154,15 +155,17 @@ st.markdown("""
         color: #ffffff;
         border-radius: 16px;
         padding: 1.2rem 1.6rem;
-        font-size: 1.5rem;
+        font-size: 1.55rem;
         font-weight: 800;
         margin-top: 1rem;
         margin-bottom: 1rem;
         border: 2px solid #00a884;
         text-align: center;
+        box-shadow: 0 8px 25px rgba(0, 168, 132, 0.25);
     }
     .result-display-box span {
         color: #00a884;
+        font-size: 2rem;
     }
     
     .stButton > button[data-testid="stBaseButton-primary"],
@@ -344,8 +347,17 @@ with col_cam:
     )
     
     if "Kamera Native" in cam_mode:
-        st.markdown('<div class="subtitle-desc">Kamera Native langsung mengalirkan gambar webcam melalui koneksi HTTPS tanpa pernah error.</div>', unsafe_allow_html=True)
-        img_buffer = st.camera_input("Kamera Native Live (Ambil Foto/Deteksi Instan)", key="native_cam_input")
+        st.markdown("""
+        <div style="background:#e2e8f0; border-radius:10px; padding:0.6rem 1rem; font-size:0.92rem; color:#334155; margin-bottom:0.8rem;">
+            💡 <b>Tips Penggunaan Praktis:</b><br>
+            • Tekan <b>Tombol SPASI (`Spacebar`) / Enter</b> di keyboard untuk mengambil foto secara otomatis tanpa perlu mengklik tetikus/mouse!<br>
+            • Centang opsi di bawah agar huruf terdeteksi otomatis langsung masuk ke kata terjemahan.
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.session_state.auto_add = st.checkbox("⚡ Otomatis tambahkan huruf ke kata setelah difoto", value=st.session_state.auto_add)
+        
+        img_buffer = st.camera_input("Kamera Native Live (Tekan SPASI di Keyboard untuk Foto)", key="native_cam_input")
         
         if img_buffer is not None:
             bytes_data = img_buffer.getvalue()
@@ -381,13 +393,19 @@ with col_cam:
                 </div>
                 """, unsafe_allow_html=True)
                 
+                # Fitur Otomatis Tambah Teks ke Kata Jika Centang Aktif
+                if st.session_state.auto_add and 'last_added_file' not in st.session_state or st.session_state.get('last_added_file') != img_buffer.id:
+                    st.session_state.current_word += pred_label
+                    st.session_state.last_added_file = img_buffer.id
+                    st.rerun()
+                
                 col_b1, col_b2 = st.columns(2)
                 with col_b1:
-                    if st.button(f"➕ Tambahkan '{pred_label}' ke Kata", type="primary", use_container_width=True):
+                    if st.button(f"➕ Tambahkan '{pred_label}' Manual Lagi", type="primary", use_container_width=True):
                         st.session_state.current_word += pred_label
                         st.rerun()
                 with col_b2:
-                    if st.button("🔄 Retake / Foto Ulang", type="secondary", use_container_width=True):
+                    if st.button("🔄 Foto Ulang (Clear Snapshot)", type="secondary", use_container_width=True):
                         st.rerun()
             else:
                 st.warning("⚠️ Tangan tidak terdeteksi di foto. Pastikan 1 tangan membentuk gestur BISINDO secara jelas di depan kamera!")
@@ -428,11 +446,10 @@ with col_info:
     st.markdown("""
     <div class="custom-card">
         <ol>
-            <li>Pilih mode <b>Kamera Native Streamlit</b> di sebelah kiri.</li>
-            <li>Arahkan 1 tangan membentuk gestur abjad BISINDO (A-Z) di depan kamera.</li>
-            <li>Klik <b>Take Photo</b>.</li>
-            <li>Hasil terjemahan abjad A-Z dan akurasinya akan langsung muncul di kotak hijau!</li>
-            <li>Klik tombol <b>Tambahkan Huruf</b> untuk menyusun menjadi kata utuh.</li>
+            <li>Gunakan <b>Tombol SPASI (`Spacebar`) / Enter</b> di keyboard untuk mengambil foto secara instan tanpa perlu menyentuh mouse!</li>
+            <li>Arahkan 1 tangan membentuk gestur abjad BISINDO (A-Z).</li>
+            <li>Huruf terdeteksi akan otomatis langsung masuk ke susunan kata!</li>
+            <li>Gunakan tombol <b>Hapus Kata</b> atau <b>Hapus 1 Huruf</b> untuk mengedit.</li>
         </ol>
     </div>
     """, unsafe_allow_html=True)
@@ -440,8 +457,8 @@ with col_info:
     # 3. KONTROL KATA (KETIGA / PALING BAWAH)
     st.markdown('<div class="section-title">Kontrol Kata</div>', unsafe_allow_html=True)
     st.markdown(f"""
-    <div style="background:#ffffff; border:2px solid #cbd5e1; border-radius:12px; padding:0.9rem 1.2rem; font-size:1.2rem; font-weight:700; color:#061d19; margin-bottom:1rem;">
-        Kata Terjemahan: <span style="color:#00a884;">{st.session_state.current_word if st.session_state.current_word else '-'}</span>
+    <div style="background:#ffffff; border:2px solid #cbd5e1; border-radius:12px; padding:0.9rem 1.2rem; font-size:1.4rem; font-weight:800; color:#061d19; margin-bottom:1rem; text-align:center;">
+        Kata Terjemahan: <span style="color:#00a884; font-size:1.7rem;">{st.session_state.current_word if st.session_state.current_word else '-'}</span>
     </div>
     """, unsafe_allow_html=True)
     
