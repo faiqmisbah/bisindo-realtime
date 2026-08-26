@@ -139,8 +139,6 @@ st.markdown("""
     }
     
     /* STREAMLIT BUTTON DIRECT TARGETING (STRICT OVERRIDE) */
-    
-    /* Button Primary (Hapus Kata: Hijau Teal #00a884) */
     .stButton > button[data-testid="stBaseButton-primary"],
     button[kind="primary"],
     button[data-testid="stBaseButton-primary"] {
@@ -162,7 +160,6 @@ st.markdown("""
         transform: translateY(-2px) !important;
     }
     
-    /* Button Secondary (Hapus 1 Huruf: Dark Charcoal #061d19) */
     .stButton > button[data-testid="stBaseButton-secondary"],
     button[kind="secondary"],
     button[data-testid="stBaseButton-secondary"] {
@@ -184,7 +181,6 @@ st.markdown("""
         transform: translateY(-2px) !important;
     }
     
-    /* Memaksa Semua Teks & Paragraph di Dalam Tombol Berwarna Putih Tegas */
     .stButton > button *,
     button[data-testid="stBaseButton-primary"] *,
     button[data-testid="stBaseButton-secondary"] * {
@@ -211,10 +207,10 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# 2. Cache Pemuatan Model AI & MediaPipe
+# 2. Cache Pemuatan Model AI & MediaPipe (dengan compile=False untuk Keras 2/3 Kompatibilitas)
 @st.cache_resource
 def load_resources():
-    model = load_model('cnn_bisindo.h5')
+    model = load_model('cnn_bisindo.h5', compile=False)
     model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
     classes = np.load('classes_bisindo.npy', allow_pickle=True)
     
@@ -345,7 +341,7 @@ with col_info:
     </div>
     """, unsafe_allow_html=True)
 
-    # 3. KONTROL KATA (KETIGA / PALING BAWAH - Dengan type="primary" & type="secondary")
+    # 3. KONTROL KATA (KETIGA / PALING BAWAH)
     st.markdown('<div class="section-title">Kontrol Kata</div>', unsafe_allow_html=True)
     btn_c1, btn_c2 = st.columns(2, gap="medium")
     with btn_c1:
