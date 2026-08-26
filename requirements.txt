@@ -2,8 +2,8 @@ streamlit-webrtc
 streamlit-autorefresh
 av
 opencv-python-headless
-numpy
-tensorflow-cpu
+numpy<2.0.0
+tensorflow-cpu>=2.12.0,<2.16.0
 mediapipe
 pandas
 scikit-learn
