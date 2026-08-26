@@ -1,10 +1,9 @@
-streamlit
 streamlit-webrtc
 streamlit-autorefresh
 av
 opencv-python-headless
 numpy
-tensorflow
+tensorflow-cpu
 mediapipe
 pandas
 scikit-learn
