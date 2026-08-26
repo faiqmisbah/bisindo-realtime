@@ -22,7 +22,7 @@ st.set_page_config(
 if "current_word" not in st.session_state:
     st.session_state.current_word = ""
 
-# Custom Styling (FaiqDev Theme - Direct Button Type & High Contrast Visibility)
+# Custom Styling (FaiqDev Theme)
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
@@ -361,7 +361,7 @@ with col_cam:
     )
     
     if "Kamera Native" in cam_mode:
-        img_buffer = st.camera_input("Snapshot Kamera Native (Tekan Spasi atau klik tombol di bawah)", key="native_cam_input_working")
+        img_buffer = st.camera_input("Snapshot Kamera Native (Tekan Spasi atau klik tombol di bawah)", key="native_cam_input_stable")
         
         if img_buffer is not None:
             bytes_data = img_buffer.getvalue()
