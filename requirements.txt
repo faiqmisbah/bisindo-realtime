@@ -1,6 +1,9 @@
-gradio
+streamlit-webrtc
+streamlit-autorefresh
+av
 opencv-python-headless
 tensorflow-cpu
 mediapipe
 pandas
 scikit-learn
+gradio
