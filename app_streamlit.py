@@ -324,15 +324,28 @@ with col_cam:
     st.markdown('<div class="section-title">Stream Kamera Live</div>', unsafe_allow_html=True)
     st.markdown('<div class="subtitle-desc">Hasil terjemahan kata tampil otomatis di baris bawah video.</div>', unsafe_allow_html=True)
     
-    # Pool Multi-STUN Servers untuk Koneksi WebRTC Cepat & Stabil dari Cloud
+    # Konfigurasi WebRTC ICE dengan Server TURN Relay Publik (Bypass NAT/Firewall Cloud)
     rtc_config = RTCConfiguration({
         "iceServers": [
             {"urls": ["stun:stun.l.google.com:19302"]},
             {"urls": ["stun:stun1.l.google.com:19302"]},
             {"urls": ["stun:stun2.l.google.com:19302"]},
-            {"urls": ["stun:stun3.l.google.com:19302"]},
-            {"urls": ["stun:stun4.l.google.com:19302"]},
-            {"urls": ["stun:stun.services.mozilla.com"]}
+            {"urls": ["stun:openrelay.metered.ca:80"]},
+            {
+                "urls": ["turn:openrelay.metered.ca:80"],
+                "username": "openrelay",
+                "credential": "openrelay"
+            },
+            {
+                "urls": ["turn:openrelay.metered.ca:443"],
+                "username": "openrelay",
+                "credential": "openrelay"
+            },
+            {
+                "urls": ["turns:openrelay.metered.ca:443?transport=tcp"],
+                "username": "openrelay",
+                "credential": "openrelay"
+            }
         ]
     })
     
