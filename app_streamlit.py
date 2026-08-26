@@ -324,8 +324,16 @@ with col_cam:
     st.markdown('<div class="section-title">Stream Kamera Live</div>', unsafe_allow_html=True)
     st.markdown('<div class="subtitle-desc">Hasil terjemahan kata tampil otomatis di baris bawah video.</div>', unsafe_allow_html=True)
     
+    # Pool Multi-STUN Servers untuk Koneksi WebRTC Cepat & Stabil dari Cloud
     rtc_config = RTCConfiguration({
-        "iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]
+        "iceServers": [
+            {"urls": ["stun:stun.l.google.com:19302"]},
+            {"urls": ["stun:stun1.l.google.com:19302"]},
+            {"urls": ["stun:stun2.l.google.com:19302"]},
+            {"urls": ["stun:stun3.l.google.com:19302"]},
+            {"urls": ["stun:stun4.l.google.com:19302"]},
+            {"urls": ["stun:stun.services.mozilla.com"]}
+        ]
     })
     
     ctx = webrtc_streamer(
