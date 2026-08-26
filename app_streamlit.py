@@ -1,3 +1,7 @@
+import os
+os.environ["TF_USE_LEGACY_KERAS"] = "1"
+os.environ["KERAS_BACKEND"] = "tensorflow"
+
 import streamlit as st
 from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration, WebRtcMode
 import cv2
@@ -7,12 +11,13 @@ from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 import av
 
-# Import model loader dengan tf_keras fallback (Keras 2/3 compatibility)
+# Import legacy Keras loader first
 try:
-    import tf_keras as legacy_keras
-    load_model = legacy_keras.models.load_model
+    import tf_keras as keras
+    load_model = keras.models.load_model
 except Exception:
-    from tensorflow.keras.models import load_model
+    import tensorflow.keras as keras
+    load_model = keras.models.load_model
 
 # 1. Konfigurasi Halaman Streamlit
 st.set_page_config(
@@ -216,7 +221,24 @@ st.markdown("""
 # 2. Cache Pemuatan Model AI & MediaPipe
 @st.cache_resource
 def load_resources():
-    model = load_model('cnn_bisindo.h5', compile=False)
+    try:
+        model = load_model('cnn_bisindo.h5', compile=False)
+    except Exception:
+        # Robust Fallback: jika deserialisasi config Keras 3 gagal karena 'batch_shape', muat bobot murni (load_weights)
+        import tensorflow as tf
+        model = tf.keras.models.Sequential([
+            tf.keras.layers.Input(shape=(63, 1)),
+            tf.keras.layers.Conv1D(64, 3, activation='relu', padding='same'),
+            tf.keras.layers.MaxPooling1D(2),
+            tf.keras.layers.Conv1D(128, 3, activation='relu', padding='same'),
+            tf.keras.layers.MaxPooling1D(2),
+            tf.keras.layers.Flatten(),
+            tf.keras.layers.Dense(128, activation='relu'),
+            tf.keras.layers.Dropout(0.3),
+            tf.keras.layers.Dense(26, activation='softmax')
+        ])
+        model.load_weights('cnn_bisindo.h5')
+        
     model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
     classes = np.load('classes_bisindo.npy', allow_pickle=True)
     
