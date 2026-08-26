@@ -24,7 +24,7 @@ st.set_page_config(
 if "current_word" not in st.session_state:
     st.session_state.current_word = ""
 
-# Custom Styling (FaiqDev Theme - High Contrast & Visibility Override)
+# Custom Styling (FaiqDev Theme - High Contrast & Visibility)
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
@@ -43,18 +43,11 @@ st.markdown("""
         max-width: 100% !important;
     }
     
-    /* Strict Visibility Override for Radio Labels and Text */
     .stRadio label, .stRadio p, div[data-testid="stRadio"] label p, div[data-testid="stRadio"] p {
         color: #061d19 !important;
         font-size: 1.05rem !important;
         font-weight: 800 !important;
         opacity: 1 !important;
-    }
-    
-    /* Strict Visibility for Warnings and Alerts */
-    [data-testid="stAlert"] *, .stAlert p {
-        color: #061d19 !important;
-        font-weight: 700 !important;
     }
     
     .brand-header {
@@ -355,13 +348,90 @@ class BISINDOProcessor(VideoProcessorBase):
 
         return av.VideoFrame.from_ndarray(img, format="bgr24")
 
+# Component HTML5 Kamera Timer 3 Detik
+def timer_camera_component():
+    html_code = """
+    <div style="font-family: 'Inter', sans-serif; text-align: center;">
+        <video id="webcam" autoplay playsinline muted style="width:100%; max-height:480px; border-radius:16px; border:2px solid #cbd5e1; background:#000; transform: scaleX(-1); box-shadow: 0 4px 20px rgba(0,0,0,0.05);"></video>
+        <canvas id="canvas" style="display:none;"></canvas>
+        
+        <div id="timerDisplay" style="font-size:2rem; font-weight:900; color:#00a884; margin-top:12px; min-height:50px; text-shadow: 0 2px 8px rgba(0,168,132,0.2);"></div>
+        
+        <button id="timerBtn" style="background-color:#00a884; color:#ffffff; font-size:1.15rem; font-weight:800; border-radius:50px; border:2px solid #00a884; padding:0.9rem 1.8rem; cursor:pointer; width:100%; box-shadow:0 4px 15px rgba(0,168,132,0.35); transition: all 0.2s ease;">
+            ⏱️ Take Photo dengan Timer (Hitung Mundur 3 Detik)
+        </button>
+    </div>
+
+    <script>
+        const video = document.getElementById('webcam');
+        const canvas = document.getElementById('canvas');
+        const timerBtn = document.getElementById('timerBtn');
+        const timerDisplay = document.getElementById('timerDisplay');
+
+        // Minta akses kamera webcam secara langsung
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } })
+                .then(stream => {
+                    video.srcObject = stream;
+                })
+                .catch(err => {
+                    timerDisplay.style.color = '#ef4444';
+                    timerDisplay.innerText = "⚠️ Izinkan akses kamera pada browser Anda!";
+                });
+        }
+
+        timerBtn.onclick = () => {
+            timerBtn.disabled = true;
+            timerBtn.style.opacity = '0.6';
+            let count = 3;
+            timerDisplay.style.color = '#00a884';
+            timerDisplay.innerText = " Bersiap-siap memperagakan gestur: " + count + " detik...";
+            
+            const interval = setInterval(() => {
+                count--;
+                if (count > 0) {
+                    timerDisplay.innerText = " Bersiap-siap memperagakan gestur: " + count + " detik...";
+                } else {
+                    clearInterval(interval);
+                    timerDisplay.innerText = "📸 SNAP!";
+                    
+                    // Ambil gambar dari video stream ke canvas
+                    canvas.width = video.videoWidth || 640;
+                    canvas.height = video.videoHeight || 480;
+                    const ctx = canvas.getContext('2d');
+                    ctx.translate(canvas.width, 0);
+                    ctx.scale(-1, 1);
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+                    
+                    // Kirimkan Base64 Gambar ke Streamlit
+                    if (window.Streamlit) {
+                        window.Streamlit.setComponentValue(dataUrl);
+                    } else {
+                        const event = new CustomEvent("Streamlit:setComponentValue", { detail: dataUrl });
+                        window.dispatchEvent(event);
+                    }
+                    
+                    setTimeout(() => {
+                        timerDisplay.innerText = "";
+                        timerBtn.disabled = false;
+                        timerBtn.style.opacity = '1';
+                    }, 2000);
+                }
+            }, 1000);
+        };
+    </script>
+    """
+    return components.html(html_code, height=600)
+
 # Layout Utama Full Width
 col_cam, col_info = st.columns([65, 35], gap="large")
 
 with col_cam:
     st.markdown('<div class="section-title">Stream Kamera Live</div>', unsafe_allow_html=True)
     
-    # Mode Pilihan Kamera (Teks Gelap Bold High Contrast)
+    # Mode Pilihan Kamera (Teks Gelap High-Contrast 100% Readability)
     cam_mode = st.radio(
         "📷 Mode Kamera:",
         ["Kamera Native Timer 3 Detik (Paling Praktis & Bebas Error)", "Kamera WebRTC Live (Real-Time Stream)"],
@@ -372,62 +442,74 @@ with col_cam:
     if "Kamera Native" in cam_mode:
         st.markdown("""
         <div style="background:#ffffff; border:2px solid #cbd5e1; border-radius:14px; padding:0.9rem 1.2rem; font-size:1rem; font-weight:700; color:#061d19; margin-bottom:1rem; box-shadow: 0 4px 12px rgba(0,0,0,0.03);">
-            ⏱️ <b>Petunjuk Kamera Timer 3 Detik:</b><br>
-            Klik tombol <b>Take Photo dengan Timer (3 Detik)</b> di bawah kamera. Kamera akan menghitung mundur <b>3... 2... 1...</b> sehingga Anda punya jeda waktu untuk membentuk gestur isyarat tangan secara sempurna!
+            ⏱️ <b>Fitur Kamera Timer 3 Detik:</b><br>
+            Klik tombol hijau <b>⏱️ Take Photo dengan Timer (Hitung Mundur 3 Detik)</b> di bawah layar kamera. Anda memiliki jeda waktu 3 detik penuh untuk membentuk gestur tangan secara sempurna sebelum foto otomatis terambil!
         </div>
         """, unsafe_allow_html=True)
         
-        img_buffer = st.camera_input("Kamera Native (Gunakan Tombol Timer atau Spasi)", key="native_cam_input")
+        # Panggil Component HTML5 Kamera Timer 3 Detik Custom
+        camera_data = timer_camera_component()
         
-        if img_buffer is not None:
-            bytes_data = img_buffer.getvalue()
-            img_np = cv2.imdecode(np.frombuffer(bytes_data, np.uint8), cv2.IMREAD_COLOR)
-            img_np = cv2.flip(img_np, 1)
-            
-            rgb_image = cv2.cvtColor(img_np, cv2.COLOR_BGR2RGB)
-            mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_image)
-            detection_result = detector.detect(mp_image)
-            
-            if detection_result.hand_landmarks:
-                hand_landmarks = detection_result.hand_landmarks[0]
-                h, w, _ = img_np.shape
+        # Pilihan Alternatif: Streamlit Native Fallback Camera Input
+        with st.expander("📷 Atau gunakan Kamera Bawaan Streamlit (Snapshot Manual)"):
+            img_buffer = st.camera_input("Snapshot Manual", key="native_cam_input_fallback")
+            if img_buffer is not None:
+                bytes_data = img_buffer.getvalue()
+                camera_data = "data:image/jpeg;base64," + base64.b64encode(bytes_data).decode()
+        
+        if camera_data:
+            try:
+                # Decode Base64 Data URL
+                header, encoded = camera_data.split(",", 1)
+                data = base64.b64decode(encoded)
+                img_np = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
                 
-                for lm in hand_landmarks:
-                    lx, ly = int(lm.x * w), int(lm.y * h)
-                    cv2.circle(img_np, (lx, ly), 5, (0, 168, 132), -1)
+                rgb_image = cv2.cvtColor(img_np, cv2.COLOR_BGR2RGB)
+                mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_image)
+                detection_result = detector.detect(mp_image)
                 
-                cx, cy = int(hand_landmarks[8].x * w), int(hand_landmarks[8].y * h)
-                cv2.circle(img_np, (cx, cy), 12, (132, 168, 0), cv2.FILLED)
-                
-                row = normalize_landmarks(hand_landmarks)
-                X_input = np.array(row, dtype=np.float32).reshape(1, 63, 1)
-                
-                predictions = model(X_input, training=False).numpy()
-                pred_index = np.argmax(predictions)
-                confidence = float(predictions[0][pred_index])
-                pred_label = str(classes[pred_index])
-                
-                st.markdown(f"""
-                <div class="result-display-box">
-                    Terdeteksi Abjad BISINDO: <span>{pred_label}</span> (Akurasi: {int(confidence*100)}%)
-                </div>
-                """, unsafe_allow_html=True)
-                
-                col_b1, col_b2 = st.columns(2)
-                with col_b1:
-                    if st.button(f"➕ Tambahkan '{pred_label}' ke Kata Utama", type="primary", use_container_width=True):
-                        st.session_state.current_word += pred_label
-                        st.rerun()
-                with col_b2:
-                    if st.button("🔄 Clear / Foto Ulang", type="secondary", use_container_width=True):
-                        st.rerun()
-            else:
-                st.markdown("""
-                <div class="warning-card-box">
-                    ⚠️ <b>Tangan Tidak Terdeteksi di Foto:</b><br>
-                    Pastikan 1 tangan membentuk gestur abjad BISINDO secara jelas & terang di depan kamera.
-                </div>
-                """, unsafe_allow_html=True)
+                if detection_result.hand_landmarks:
+                    hand_landmarks = detection_result.hand_landmarks[0]
+                    h, w, _ = img_np.shape
+                    
+                    for lm in hand_landmarks:
+                        lx, ly = int(lm.x * w), int(lm.y * h)
+                        cv2.circle(img_np, (lx, ly), 5, (0, 168, 132), -1)
+                    
+                    cx, cy = int(hand_landmarks[8].x * w), int(hand_landmarks[8].y * h)
+                    cv2.circle(img_np, (cx, cy), 12, (132, 168, 0), cv2.FILLED)
+                    
+                    row = normalize_landmarks(hand_landmarks)
+                    X_input = np.array(row, dtype=np.float32).reshape(1, 63, 1)
+                    
+                    predictions = model(X_input, training=False).numpy()
+                    pred_index = np.argmax(predictions)
+                    confidence = float(predictions[0][pred_index])
+                    pred_label = str(classes[pred_index])
+                    
+                    st.markdown(f"""
+                    <div class="result-display-box">
+                        Terdeteksi Abjad BISINDO: <span>{pred_label}</span> (Akurasi: {int(confidence*100)}%)
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    col_b1, col_b2 = st.columns(2)
+                    with col_b1:
+                        if st.button(f"➕ Tambahkan '{pred_label}' ke Kata Utama", type="primary", use_container_width=True):
+                            st.session_state.current_word += pred_label
+                            st.rerun()
+                    with col_b2:
+                        if st.button("🔄 Reset Hasil", type="secondary", use_container_width=True):
+                            st.rerun()
+                else:
+                    st.markdown("""
+                    <div class="warning-card-box">
+                        ⚠️ <b>Tangan Tidak Terdeteksi di Foto:</b><br>
+                        Pastikan 1 tangan membentuk gestur abjad BISINDO secara jelas & terang di depan kamera.
+                    </div>
+                    """, unsafe_allow_html=True)
+            except Exception as ex:
+                pass
     else:
         rtc_config = RTCConfiguration({
             "iceServers": [
@@ -465,9 +547,9 @@ with col_info:
     st.markdown("""
     <div class="custom-card">
         <ol>
-            <li>Klik tombol <b>Take Photo / Spasi</b> pada kamera.</li>
-            <li>Bentuk gestur tangan abjad BISINDO (A-Z) di depan kamera.</li>
-            <li>Hasil terjemahan abjad & akurasi tinggi (misal: 100%) langsung muncul di banner hijau!</li>
+            <li>Klik tombol hijau <b>⏱️ Take Photo dengan Timer (Hitung Mundur 3 Detik)</b> di bawah kamera.</li>
+            <li>Peragakan gestur tangan abjad BISINDO (A-Z) selama hitung mundur <b>3... 2... 1...</b></li>
+            <li>Foto terambil otomatis dan hasil terjemahan abjad A-Z langsung muncul di banner hijau!</li>
             <li>Klik tombol <b>Tambahkan Huruf</b> untuk merangkai kata.</li>
         </ol>
     </div>
