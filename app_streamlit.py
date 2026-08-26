@@ -2,12 +2,14 @@ import os
 os.environ["TF_USE_LEGACY_KERAS"] = "1"
 os.environ["KERAS_BACKEND"] = "tensorflow"
 
-import streamlit as st
-import cv2
-import numpy as np
+# Import MediaPipe first to initialize C++ absl/glog symbols cleanly
 import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
+
+import cv2
+import numpy as np
+import streamlit as st
 from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration, WebRtcMode
 import av
 
