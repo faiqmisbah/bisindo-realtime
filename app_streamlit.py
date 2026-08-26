@@ -5,8 +5,14 @@ import numpy as np
 import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
-from tensorflow.keras.models import load_model
 import av
+
+# Import model loader dengan tf_keras fallback (Keras 2/3 compatibility)
+try:
+    import tf_keras as legacy_keras
+    load_model = legacy_keras.models.load_model
+except Exception:
+    from tensorflow.keras.models import load_model
 
 # 1. Konfigurasi Halaman Streamlit
 st.set_page_config(
@@ -207,7 +213,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# 2. Cache Pemuatan Model AI & MediaPipe (dengan compile=False untuk Keras 2/3 Kompatibilitas)
+# 2. Cache Pemuatan Model AI & MediaPipe
 @st.cache_resource
 def load_resources():
     model = load_model('cnn_bisindo.h5', compile=False)

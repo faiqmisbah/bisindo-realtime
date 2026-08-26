@@ -3,6 +3,7 @@ streamlit-autorefresh
 av
 opencv-python-headless
 tensorflow-cpu
+tf-keras
 mediapipe
 pandas
 scikit-learn
